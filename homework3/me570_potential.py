@@ -190,42 +190,43 @@ class Planner:
             steps += 1
         return x_path, u_path
 
+    
     def run_plot(self):
-        """
-        This function performs the following steps:
-     - Loads the problem data from the file !70!DarkSeaGreen2 sphereworld.mat.
-     - For each goal location in  world.xGoal:
-     - Uses the function Sphereworld.plot to plot the world in a first figure.
-     - Sets  planner_parameters['U'] to the negative of  Total.grad.
-     - it:grad-handle Calls the function Potential.planner with the problem data and the input
-    arguments. The function needs to be called five times, using each one of the initial locations
-    given in  x_start (also provided in !70!DarkSeaGreen2 sphereworld.mat).
-     - it:plot-plan After each call, plot the resulting trajectory superimposed to the world in the
-    first subplot; in a second subplot, show  u_path (using the same color and using the  semilogy
-    command).
-        """
-        
-        world = SphereWorld()
-        world.plot()
-        for i in world.x_start.shape[1]:
-            for j in world.x_goal.shape[1]:
-                potential = {
-                    "x_goal": world.x_goal,
-                    "shape":1,
-                    "repulsive_weight":1}
-                tot = Total(world,potential)
-                #make another dictionary for potential 
-                #make object tot to create potential
-                planner_parameters = {
-                "U" : tot.eval(x_eval),
-                "control": tot.grad(x_eval) * -1,
-                "epsilon": 100,
-                "nb_steps": 1000
-                }
-            self.run(x_start, planner_parameters)
-        return planner_parameters
-
-
+            """
+            This function performs the following steps:
+         - Loads the problem data from the file !70!DarkSeaGreen2 sphereworld.mat.
+         - For each goal location in  world.xGoal:
+         - Uses the function Sphereworld.plot to plot the world in a first figure.
+         - Sets  planner_parameters['U'] to the negative of  Total.grad.
+         - it:grad-handle Calls the function Potential.planner with the problem data and the input
+        arguments. The function needs to be called five times, using each one of the initial locations
+        given in  x_start (also provided in !70!DarkSeaGreen2 sphereworld.mat).
+         - it:plot-plan After each call, plot the resulting trajectory superimposed to the world in the
+        first subplot; in a second subplot, show  u_path (using the same color and using the  semilogy
+        command).
+            """
+            
+            world = SphereWorld()
+            world.plot()
+            
+            for i in world.x_start.shape[1]:
+                for j in world.x_goal.shape[1]:
+                    potential = {
+                        "x_goal": world.x_goal[:,j],
+                        "shape":["conic", "quadratic"],
+                        "repulsive_weight":0.01}
+                    #make another dictionary for potential 
+                    #make object tot to create potential
+                    tot = Total(world,potential)
+                    tot_grad = lambda x_eval: tot.grad(x_eval)
+                    planner_parameters = {
+                    "U" : tot.eval,
+                    "control": tot_grad * -1,
+                    "epsilon": 100,
+                    "nb_steps": 1000
+                    }
+                    self.run(world.x_start[:,i], planner_parameters)
+            return planner_parameters
 def clfcbf_control(x_eval, world, potential):
     """
     Compute u^* according to      (  eq:clfcbf-qp  ).
@@ -233,4 +234,7 @@ def clfcbf_control(x_eval, world, potential):
     pass  # Substitute with your code
     return u_opt
 
+sqr = lambda x : x ** 2
+
+print(sqr(5))
     
