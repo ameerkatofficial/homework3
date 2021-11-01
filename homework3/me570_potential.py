@@ -76,10 +76,11 @@ class RepulsiveSphere:
         Compute the gradient of U_ rep for a single sphere, as given by      (  eq:repulsive-gradient
     ).
         """
-        d = self.sphere.distance_grad(x_eval)
-        d_i = me570_geometry.sphere.distance_influence
+        d = self.sphere.distance(x_eval)
+        d_grad = self.sphere.distance_grad(x_eval)
+        d_i = self.sphere.distance_influence
         if 0 < d and d < d_i: 
-            grad_u_rep = -((1/d) - (1/d_i)) * (1/(d**2)) * np.gradient(d)
+            grad_u_rep = -((1/d) - (1/d_i)) * (1/(d**2)) * d_grad
         elif d > d_i:
             grad_u_rep = 0
         else:
@@ -102,8 +103,8 @@ class Attractive:
     potential.xGoal given by the formula: If  potential.shape is equal to  'conic', use p=1. If
     potential.shape is equal to  'quadratic', use p=2.
         """
-        x_goal = self.potential.xGoal
-        if self.potential.shape == 'conic':
+        x_goal = self.potential["x_goal"]
+        if self.potential["shape"] == 'conic':
             p = 1
         else:
             p = 2
@@ -117,13 +118,12 @@ class Attractive:
     given by the formula If  potential['shape'] is equal to  'conic', use p=1; if it is equal to
     'quadratic', use p=2.
         """
-        x_goal = self.potential.xGoal
-        if self.potential.shape == 'conic':
+        x_goal = self.potential["x_goal"]
+        if self.potential["shape"] == 'conic':
             p = 1
         else:
             p = 2
-        u_attr = eval(x_eval)
-        grad_u_attr = p * u_attr**(p-1) * ((x_eval - x_goal)/abs(x_eval - x_goal))
+        grad_u_attr = p * abs(x_eval - x_goal)**(p-2) * (x_eval - x_goal)
         return grad_u_attr
 
 
@@ -135,6 +135,8 @@ class Total:
         """
         self.world = world
         self.potential = potential
+        self.u_attr = Attractive(potential)
+        self.u_rep = list(map(lambda x: RepulsiveSphere(x), world.world))
 
     def eval(self, x_eval):
         """
@@ -142,11 +144,11 @@ class Total:
     potential.repulsiveWeight
         """
         sum_u_rep = 0
-        for sphere in self.world:
+        for sphere in self.u_rep:
             sum_u_rep += sphere.eval(x_eval)
             
-        a = self.potential.repulsiveWeight
-        u_eval = self.u_attr + a * sum_u_rep
+        a = self.potential["repulsive_weight"]
+        u_eval = self.u_attr.eval(x_eval) + a * sum_u_rep
         
         return u_eval
 
@@ -156,13 +158,19 @@ class Total:
         Compute the gradient of the total potential,  U= U_ attr+    _i U_ rep,i, where   is given by
     the variable  potential.repulsiveWeight
         """
-        grad_u_eval = np.gradient(self.u_eval)
+        sum_u_rep = 0
+        for sphere in self.u_rep:
+            sum_u_rep += sphere.grad(x_eval)
+            
+        a = self.potential["repulsive_weight"]
+        grad_u_eval = self.u_attr.grad(x_eval) + a * sum_u_rep
+        
         return grad_u_eval
 
 
 class Planner:
     """  """
-    def run(self, x_start, world, potential, planned_parameters):
+    def run(self, x_start, planner_parameters):
         """
         This function uses a given function ( planner_parameters['control']) to implement a generic
     potential-based planner with step size  planner_parameters['epsilon'], and evaluates the cost
@@ -170,27 +178,47 @@ class Planner:
     planner_parameters['nb_steps'] is reached, or when the norm of the vector given by
     planner_parameters['control'] is less than 5 10^-3 (equivalently,  5e-3).
         """
-        Planner.run_plot()
-        nb_steps = Planner.planner_parameters['nb_steps']
-        control = Planner.planner_parameters['control']
-        epsilon = Planner.planner_parameters['epilson']
-        steps = 0
-        x_path = np.zeros(nb_steps, 2)
-        u_path = np.zeros(nb_steps,1)
+        nb_steps = planner_parameters['nb_steps']
+        pot_func = planner_parameters['U']
+        control = planner_parameters['control']
+        epsilon = planner_parameters['epsilon']
         
-        x_path[0,:] = x_start
-        u_path[0,:] = control.eval(x_path[0,:])
         
-        while steps < nb_steps: 
-            if np.linalg.norm(control) > 5e-3:
-              x_path[steps + 1, :] = x_path[steps, :] + epsilon * control.grad(x_path[steps, :]) 
-              u_path[steps + 1, :] = control.eval(x_path[0,:])
-            else:
-                break
-            steps += 1
+        x_path = [x_start] 
+        u_path = [pot_func(x_path[-1])]
+        
+        for _ in range(nb_steps):
+            grad = control(x_path[-1])
+            norm_grad = np.linalg.norm(grad)
+            if norm_grad < 5e-3:
+                x_path.append(np.array([[np.nan], [np.nan]]))
+                u_path.append(np.nan)
+                continue
+            step = epsilon * (grad/norm_grad)
+            x_path.append(x_path[-1] - step)
+            u_path.append(pot_func(x_path[-1]))
+            
+        x_path = np.hstack(x_path)
+        u_path = np.array(u_path)
         return x_path, u_path
+        
+        
+        # x_path = np.zeros((nb_steps, 2))
+        # u_path = np.zeros((nb_steps,1))
+        
+        # x_path[:,0] = x_start
+        # u_path[0] = control.eval(x_path[:,0].reshape((2, 1)))
+        
+        # while steps < nb_steps: 
+        #     if np.linalg.norm(control) > 5e-3:
+        #       x_path[steps + 1, :] = x_path[steps, :] + epsilon * control.grad(x_path[steps, :]) 
+        #       u_path[steps + 1, :] = control.eval(x_path[:,steps + 1].reshape((2, 1)))
+        #     else:
+        #         break
+        #     steps += 1
+        # return x_path, u_path
 
-    
+
     def run_plot(self):
             """
             This function performs the following steps:
@@ -205,27 +233,30 @@ class Planner:
         first subplot; in a second subplot, show  u_path (using the same color and using the  semilogy
         command).
             """
-            
+            print("hello world")
             world = SphereWorld()
-            world.plot()
-            
-            for i in world.x_start.shape[1]:
-                for j in world.x_goal.shape[1]:
+            for i in range(world.x_start.shape[1]):
+                for j in range(world.x_goal.shape[1]):
                     potential = {
-                        "x_goal": world.x_goal[:,j],
-                        "shape":["conic", "quadratic"],
+                        "x_goal": world.x_goal[:,j].reshape((2, 1)),
+                        "shape":"conic",
                         "repulsive_weight":0.01}
                     #make another dictionary for potential 
                     #make object tot to create potential
                     tot = Total(world,potential)
-                    tot_grad = lambda x_eval: tot.grad(x_eval)
+                    tot_grad = lambda x_eval: tot.grad(x_eval) * -1
+                    tot_eval = lambda x_eval: tot.eval(x_eval)
                     planner_parameters = {
-                    "U" : tot.eval,
-                    "control": tot_grad * -1,
-                    "epsilon": 100,
+                    "U" : tot_eval,
+                    "control": tot_grad,
+                    "epsilon": 0.1,
                     "nb_steps": 1000
                     }
-                    self.run(world.x_start[:,i], planner_parameters)
+                    x_path, u_path = self.run(world.x_start[:,i].reshape((2, 1)), planner_parameters)
+                    world.plot()
+                    plt.scatter(x_path[0, :], x_path[1, :])
+                    plt.show()
+                 
             return planner_parameters
 def clfcbf_control(x_eval, world, potential):
     """
@@ -234,7 +265,8 @@ def clfcbf_control(x_eval, world, potential):
     pass  # Substitute with your code
     return u_opt
 
-sqr = lambda x : x ** 2
+if __name__=="__main__":
+    p = Planner()
+    p.run_plot()
 
-print(sqr(5))
     

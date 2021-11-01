@@ -1,3 +1,4 @@
+
 def sphere_testCollision():
     """
     Generates one figure with a sphere (with arbitrary parameters) and  nb_points=100 random points that
@@ -6,4 +7,4 @@ positive). Generates a second figure in the same way (and the same set of points
 sign of the radius  r of the sphere. For each sampled point, plot also the result of the output
 pointsSphere.
     """
-    pass  # Substitute with your code
+

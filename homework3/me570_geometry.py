@@ -179,45 +179,14 @@ class Sphere:
         #STEPS
         #iterate points
         #find distance between surface of sphere and points
-        
-        d_points_sphere = []
-     
-        for p in range(0, points.shape[1]):
-            point = points[:,p]
-            PointToSphere = np.subtract(self.center, point)
-            NormPointToSphere = np.multiply(np.linalg.norm(PointToSphere), self.radius)
-            WorldPoint = np.add(NormPointToSphere, self.center)
-            d_point_sphere_mag = m.sqrt(WorldPoint.item(0)**2 + WorldPoint.item(1)**2)
-            if self.radius < 0:
-                d_point_sphere_mag = d_point_sphere_mag * -1
-            else:
-                continue
-            d_points_sphere.append(d_point_sphere_mag)
-        #check if negative or positive
-        #return 1XN array of distances
+        d_points_sphere = np.sqrt(np.sum((points - self.center)**2, 0)) - self.radius
         return d_points_sphere
 
-    def distance_grad(self, sphere, points):
+    def distance_grad(self, points):
         """
         Computes the gradient of the signed distance between points and the sphere, consistently with
     the definition of Sphere.distance.
         """
-        grad_d_points_sphere = []
-        
-        for index in range(len(points)):
-            a = points[index-1]
-            b = points[index]
-            r_a = self.distance(a)
-            r_b = self.distance(b)
-            temp_grad = []
-            r_diff = r_b - r_a
-            for i in range(0,2):
-                coord1 = a[i]
-                coord2 = b[i]
-                coord_diff = coord2 - coord1
-                coord_grad = r_diff/coord_diff
-                temp_grad.append(coord_grad)
-                
-            grad_d_points_sphere.append(temp_grad)
-            
+        dist = self.distance(points)
+        grad_d_points_sphere = (points - self.center) / (dist + self.radius)
         return grad_d_points_sphere
