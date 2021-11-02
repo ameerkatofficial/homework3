@@ -82,9 +82,9 @@ class RepulsiveSphere:
         if 0 < d and d < d_i: 
             grad_u_rep = -((1/d) - (1/d_i)) * (1/(d**2)) * d_grad
         elif d > d_i:
-            grad_u_rep = 0
+            grad_u_rep = np.zeros((2,1))
         else:
-            grad_u_rep = math.nan
+            grad_u_rep = np.nan*np.ones((2,1))
    
         return grad_u_rep
 
@@ -108,7 +108,7 @@ class Attractive:
             p = 1
         else:
             p = 2
-        u_attr = abs(x_eval - x_goal)**p
+        u_attr = np.linalg.norm(x_eval - x_goal)**p
             
         return u_attr
 
@@ -123,7 +123,7 @@ class Attractive:
             p = 1
         else:
             p = 2
-        grad_u_attr = p * abs(x_eval - x_goal)**(p-2) * (x_eval - x_goal)
+        grad_u_attr = p * np.linalg.norm(x_eval - x_goal)**(p-2) * (x_eval - x_goal)
         return grad_u_attr
 
 
@@ -194,7 +194,7 @@ class Planner:
                 x_path.append(np.array([[np.nan], [np.nan]]))
                 u_path.append(np.nan)
                 continue
-            step = epsilon * (grad/norm_grad)
+            step = epsilon * grad
             x_path.append(x_path[-1] - step)
             u_path.append(pot_func(x_path[-1]))
             
@@ -249,7 +249,7 @@ class Planner:
                     planner_parameters = {
                     "U" : tot_eval,
                     "control": tot_grad,
-                    "epsilon": 0.1,
+                    "epsilon": 0.01,
                     "nb_steps": 1000
                     }
                     x_path, u_path = self.run(world.x_start[:,i].reshape((2, 1)), planner_parameters)
@@ -262,6 +262,12 @@ def clfcbf_control(x_eval, world, potential):
     """
     Compute u^* according to      (  eq:clfcbf-qp  ).
     """
+    c_h = planner_parameters['repulsive_weight']
+    a_barrier = 
+    b_barrier = c_h * sphere.distance()
+    u_ref = (np.linalg.norm(Total.eval(x_eval) + Attractive.eval(x_eval)))**2
+    #feed np arrays of a_barrier, b_barrier, and u_ref int me570_qp
+    #u ref, clubs is just the function already written 
     pass  # Substitute with your code
     return u_opt
 
