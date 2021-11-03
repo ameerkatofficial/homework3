@@ -4,6 +4,7 @@ Classes to define potential and potential planner for the sphere world
 
 import numpy as np
 import me570_geometry
+import me570_qp
 from matplotlib import pyplot as plt
 from scipy import io as scio
 import math
@@ -163,7 +164,7 @@ class Total:
             sum_u_rep += sphere.grad(x_eval)
             
         a = self.potential["repulsive_weight"]
-        grad_u_eval = self.u_attr.grad(x_eval) + a * sum_u_rep
+        grad_u_eval = self.u_attr.grad(x_eval) + a * sum_u_rep 
         
         return grad_u_eval
 
@@ -235,44 +236,62 @@ class Planner:
             """
             print("hello world")
             world = SphereWorld()
-            for i in range(world.x_start.shape[1]):
-                for j in range(world.x_goal.shape[1]):
+            for j in range(world.x_goal.shape[1]):
+                for i in range(world.x_start.shape[1]):
                     potential = {
                         "x_goal": world.x_goal[:,j].reshape((2, 1)),
                         "shape":"conic",
-                        "repulsive_weight":0.01}
+                        "repulsive_weight":0.1}
                     #make another dictionary for potential 
                     #make object tot to create potential
+                    # att = Attractive(potential)
+                    # att_eval = lambda x_eval: att.eval(x_eval)
                     tot = Total(world,potential)
-                    tot_grad = lambda x_eval: tot.grad(x_eval) * -1
+                    tot_grad = lambda x_eval: tot.grad(x_eval) 
                     tot_eval = lambda x_eval: tot.eval(x_eval)
+                    # clfcbf_control = lambda x_eval: clfcbf_control(x_eval)
                     planner_parameters = {
                     "U" : tot_eval,
                     "control": tot_grad,
-                    "epsilon": 0.01,
-                    "nb_steps": 1000
+                    # "U": att_eval,
+                    # "control": clfcbf_control,
+                    "epsilon": 0.001,
+                    "nb_steps": 10000
                     }
                     x_path, u_path = self.run(world.x_start[:,i].reshape((2, 1)), planner_parameters)
                     world.plot()
-                    plt.scatter(x_path[0, :], x_path[1, :])
-                    plt.show()
+                    plt.plot(x_path[0, :], x_path[1, :])
+                plt.show()
+                
                  
             return planner_parameters
 def clfcbf_control(x_eval, world, potential):
     """
     Compute u^* according to      (  eq:clfcbf-qp  ).
     """
-    c_h = planner_parameters['repulsive_weight']
-    a_barrier = 
-    b_barrier = c_h * sphere.distance()
-    u_ref = (np.linalg.norm(Total.eval(x_eval) + Attractive.eval(x_eval)))**2
+    a_barrier = np.zeros()
+    b_barrier= np.zeros()
+    u_ref = np.zeros()
+    for sphere in world.world:
+        h = sphere.distance(x_eval)
+        h_grad = sphere.distance_grad(x_eval)
+        c_h = Planner.planner_parameters['repulsive_weight']
+        a_barrier.append(h_grad.T * Planner.planner_parameters['U'])
+        b_barrier.append(c_h * h)
+        u_ref.append((np.linalg.norm(Total.eval(x_eval) + Attractive.eval(x_eval)))**2)
+        
     #feed np arrays of a_barrier, b_barrier, and u_ref int me570_qp
     #u ref, clubs is just the function already written 
-    pass  # Substitute with your code
+    u_opt = me570_qp(a_barrier, b_barrier, u_ref)
     return u_opt
+    
+
 
 if __name__=="__main__":
-    p = Planner()
-    p.run_plot()
+     p = Planner()     
+     p.run_plot()
+     
+
+
 
     
