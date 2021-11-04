@@ -184,11 +184,20 @@ class Planner:
         control = planner_parameters['control']
         epsilon = planner_parameters['epsilon']
         
+        x_path = np.zeros((2,nb_steps))
+        u_path = np.zeros((1,nb_steps))
+        
+        print(x_start.shape)
+        x_path[:,0] = x_start.T
+        u_path[:,0] = pot_func(np.reshape(x_path[:,0],(2,1)))
+
+        x_path[:] = np.nan
+        u_path[:] = np.nan
         
         x_path = [x_start] 
         u_path = [pot_func(x_path[-1])]
         
-        for _ in range(nb_steps):
+        for iter in range(1, nb_steps):
             grad = control(x_path[-1])
             norm_grad = np.linalg.norm(grad)
             if norm_grad < 5e-3:
@@ -203,21 +212,6 @@ class Planner:
         u_path = np.array(u_path)
         return x_path, u_path
         
-        
-        # x_path = np.zeros((nb_steps, 2))
-        # u_path = np.zeros((nb_steps,1))
-        
-        # x_path[:,0] = x_start
-        # u_path[0] = control.eval(x_path[:,0].reshape((2, 1)))
-        
-        # while steps < nb_steps: 
-        #     if np.linalg.norm(control) > 5e-3:
-        #       x_path[steps + 1, :] = x_path[steps, :] + epsilon * control.grad(x_path[steps, :]) 
-        #       u_path[steps + 1, :] = control.eval(x_path[:,steps + 1].reshape((2, 1)))
-        #     else:
-        #         break
-        #     steps += 1
-        # return x_path, u_path
 
 
     def run_plot(self):
@@ -240,27 +234,26 @@ class Planner:
                 for i in range(world.x_start.shape[1]):
                     potential = {
                         "x_goal": world.x_goal[:,j].reshape((2, 1)),
-                        "shape":"conic",
-                        "repulsive_weight":0.1}
-                    #make another dictionary for potential 
-                    #make object tot to create potential
-                    # att = Attractive(potential)
-                    # att_eval = lambda x_eval: att.eval(x_eval)
+                        "shape":"quadratic",
+                        "repulsive_weight":1}
+                    att = Attractive(potential)
+                    att_eval = lambda x_eval: att.eval(x_eval)
                     tot = Total(world,potential)
                     tot_grad = lambda x_eval: tot.grad(x_eval) 
                     tot_eval = lambda x_eval: tot.eval(x_eval)
-                    # clfcbf_control = lambda x_eval: clfcbf_control(x_eval)
+                    clfcbf_grad = lambda x_eval: clfcbf_control(x_eval, world.world, potential)
                     planner_parameters = {
-                    "U" : tot_eval,
-                    "control": tot_grad,
-                    # "U": att_eval,
-                    # "control": clfcbf_control,
-                    "epsilon": 0.001,
-                    "nb_steps": 10000
+                    # "U" : tot_eval,
+                    # "control": tot_grad,
+                    "U": att_eval,
+                    "control": clfcbf_grad,
+                    "epsilon": 0.1,
+                    "nb_steps": 40
                     }
                     x_path, u_path = self.run(world.x_start[:,i].reshape((2, 1)), planner_parameters)
+                    print(x_path)
                     world.plot()
-                    plt.plot(x_path[0, :], x_path[1, :])
+                    plt.plot(x_path[0, :], x_path[1, :])  
                 plt.show()
                 
                  
@@ -269,26 +262,38 @@ def clfcbf_control(x_eval, world, potential):
     """
     Compute u^* according to      (  eq:clfcbf-qp  ).
     """
-    a_barrier = np.zeros()
-    b_barrier= np.zeros()
-    u_ref = np.zeros()
-    for sphere in world.world:
+    a_barrier = np.zeros((len(world), 2))
+    b_barrier= np.zeros((len(world), 1))
+    attractive = Attractive(potential)
+    u_ref = attractive.grad(x_eval)
+    row = 0
+    c_h = potential['repulsive_weight']
+    for sphere in world:
         h = sphere.distance(x_eval)
         h_grad = sphere.distance_grad(x_eval)
-        c_h = Planner.planner_parameters['repulsive_weight']
-        a_barrier.append(h_grad.T * Planner.planner_parameters['U'])
-        b_barrier.append(c_h * h)
-        u_ref.append((np.linalg.norm(Total.eval(x_eval) + Attractive.eval(x_eval)))**2)
+        a_barrier[row,:] = h_grad.T
+        b_barrier[row,:] = h
+        row+=1
+    b_barrier*= -c_h    
+    print(a_barrier)
+    print()
+    print(b_barrier)
+    print()
+    print(u_ref)
+    print()
+    
         
     #feed np arrays of a_barrier, b_barrier, and u_ref int me570_qp
     #u ref, clubs is just the function already written 
-    u_opt = me570_qp(a_barrier, b_barrier, u_ref)
+    u_opt = me570_qp.qp_supervisor(a_barrier, b_barrier, u_ref)
+    
     return u_opt
     
 
 
 if __name__=="__main__":
-     p = Planner()     
+
+     p = Planner() 
      p.run_plot()
      
 
