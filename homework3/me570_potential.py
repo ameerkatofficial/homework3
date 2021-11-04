@@ -228,7 +228,6 @@ class Planner:
         first subplot; in a second subplot, show  u_path (using the same color and using the  semilogy
         command).
             """
-            print("hello world")
             world = SphereWorld()
             for j in range(world.x_goal.shape[1]):
                 for i in range(world.x_start.shape[1]):
@@ -241,7 +240,7 @@ class Planner:
                     tot = Total(world,potential)
                     tot_grad = lambda x_eval: tot.grad(x_eval) 
                     tot_eval = lambda x_eval: tot.eval(x_eval)
-                    clfcbf_grad = lambda x_eval: clfcbf_control(x_eval, world.world, potential)
+                    clfcbf_grad = lambda x_eval: clfcbf_control(x_eval, world, potential)
                     planner_parameters = {
                     # "U" : tot_eval,
                     # "control": tot_grad,
@@ -262,13 +261,13 @@ def clfcbf_control(x_eval, world, potential):
     """
     Compute u^* according to      (  eq:clfcbf-qp  ).
     """
-    a_barrier = np.zeros((len(world), 2))
-    b_barrier= np.zeros((len(world), 1))
+    a_barrier = np.zeros((len(world.world), 2))
+    b_barrier= np.zeros((len(world.world), 1))
     attractive = Attractive(potential)
     u_ref = attractive.grad(x_eval)
     row = 0
     c_h = potential['repulsive_weight']
-    for sphere in world:
+    for sphere in world.world:
         h = sphere.distance(x_eval)
         h_grad = sphere.distance_grad(x_eval)
         a_barrier[row,:] = h_grad.T

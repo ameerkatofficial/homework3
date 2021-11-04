@@ -176,8 +176,8 @@ class TwoLinkPotential:
                    tot_eval = lambda x_eval: tot.eval(x_eval)
                    clfcbf_control = lambda x_eval: clfcbf_control(x_eval, world, potential)
                    planner_parameters = {
-                       "U": @twolink_total,
-                       "control": @twolink_totalGrad,
+                       "U":TwoLinkPotential.eval(theta_eval),
+                       "control": TwoLinkPotential.grad(theta_eval),
                        "epsilon": 0.01,
                        "nb_steps": 10000
                    }
@@ -186,4 +186,3 @@ class TwoLinkPotential:
                    world.plot()
                    plt.plot(x_path[0, :], x_path[1, :])  
         plt.show()
-        TwoLink.plotAnimate(x_path)
