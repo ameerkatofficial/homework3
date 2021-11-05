@@ -1,7 +1,7 @@
 import numpy as np
-import me570_geometry as gm
 import me570_potential as pot
 import matplotlib.pyplot as plt
+import me570_geometry_hw2 as gm
 
 
 class TwoLink:
@@ -130,8 +130,12 @@ class TwoLinkPotential:
         """
         Save the arguments to internal attributes
         """
-        world = pot.SphereWorld()
-        potential = pot.Planner.potential()
+        self.world = world
+        # self.potential = potential 
+        # self.planner = pot.Planner()
+        # self.plannerParameters = pot.Planner.planner_parameters()
+        self.total = pot.Total(world, potential)
+        self.twolink = TwoLink()
 
     def eval(self, theta_eval):
         """
@@ -139,7 +143,10 @@ class TwoLinkPotential:
     U(  Wp_ eff(  )), where U is defined as in Question~ q:total-potential, and   Wp_ eff( ) is the
     position of the end effector in the world frame as a function of the joint angles   = _1\\ _2.
         """
-        pass  # Substitute with your code
+        vertex_effector_transf, polygon1_transf, polygon2_transf = self.twolink.kinematic_map(theta_eval)
+        
+        u_eval_theta = self.total.eval(vertex_effector_transf)
+        
         return u_eval_theta
 
     def grad(self, theta_eval):
@@ -147,9 +154,59 @@ class TwoLinkPotential:
         Compute the gradient of the potential U pulled back through the kinematic map of the two-link
     manipulator, i.e.,  _   U(  Wp_ eff(  )).
         """
-        pass  # Substitute with your code
+        jacobian = self.twolink.jacobian_matrix(theta_eval)
+        
+        vertex_effector_transf, polygon1_transf, polygon2_transf = self.twolink.kinematic_map(theta_eval)
+         
+        grad_u_eval = self.total.grad(vertex_effector_transf)
+        
+        grad_u_eval_theta = grad_u_eval @ jacobian
+        
         return grad_u_eval_theta
+    
+    def run(self, theta_start, planner_parameters):
+        """
+        This function uses a given function ( planner_parameters['control']) to implement a generic
+    potential-based planner with step size  planner_parameters['epsilon'], and evaluates the cost
+    along the returned path. The planner must stop when either the number of steps given by
+    planner_parameters['nb_steps'] is reached, or when the norm of the vector given by
+    planner_parameters['control'] is less than 5 10^-3 (equivalently,  5e-3).
+        """
+        nb_steps = planner_parameters['nb_steps']
+        pot_func = planner_parameters['U']
+        control = planner_parameters['control']
+        epsilon = planner_parameters['epsilon']
+        
+        theta_path = np.zeros((2,nb_steps))
+        u_path = np.zeros((1,nb_steps))
+        
+        print(theta_start.shape)
+        theta_path[:,0] = theta_start.T
+        u_path[:,0] = pot_func(np.reshape(theta_path[:,0],(2,1)))
 
+        theta_path[:] = np.nan
+        u_path[:] = np.nan
+        
+        theta_path = [theta_start] 
+        u_path = [pot_func(theta_path[-1])]
+        
+        for iter in range(1, nb_steps):
+            if np.isnan(theta_path[-1]).any():
+                break
+            grad = control(theta_path[-1])
+            norm_grad = np.linalg.norm(grad)
+            if norm_grad < 5e-3:
+                theta_path.append(np.array([[np.nan], [np.nan]]))
+                u_path.append(np.nan)
+                continue
+            step = epsilon * grad
+            theta_path.append(theta_path[-1] - step)
+            u_path.append(pot_func(theta_path[-1]))
+            
+        theta_path = np.hstack(theta_path)
+        u_path = np.array(u_path)
+        return theta_path, u_path
+  
     def run_plot(self, plannerParameters):
         """
         This function performs the same steps as Planner.run_plot in Question~ q:potentialPlannerTest,
@@ -162,27 +219,39 @@ class TwoLinkPotential:
     the planner. Note that the output  xPath from Potential.planner will really contain a sequence
     of join angles, rather than a sequence of 2-D points. Plot only every 5th or 10th column of
     xPath (e.g., use  xPath(:,1:5:end)). To avoid clutter, plot a different figure for each start.
-        """
-        print("hello world")
-        world = self.world
-        for j in range(world.x_goal[:,1].shape[1]):
-            for i in range(world.theta_start.shape[1]):
-                   potential = {
-                       "x_goal": world.x_goal[:,1].reshape((2, 1)),
-                       "shape":"quadratic",
-                       "repulsive_weight":0.1}
-                   tot = pot.Total(world,potential)
-                   tot_grad = lambda x_eval: tot.grad(x_eval) 
-                   tot_eval = lambda x_eval: tot.eval(x_eval)
-                   clfcbf_control = lambda x_eval: clfcbf_control(x_eval, world, potential)
-                   planner_parameters = {
-                       "U":TwoLinkPotential.eval(theta_eval),
-                       "control": TwoLinkPotential.grad(theta_eval),
-                       "epsilon": 0.01,
-                       "nb_steps": 10000
-                   }
-                   x_path, u_path = self.run(world.theta_start[:,i].reshape((2, 1)), planner_parameters)
-                   print(x_path)
-                   world.plot()
-                   plt.plot(x_path[0, :], x_path[1, :])  
+    """
+        print(self.world.x_goal)
+        # for j in range(self.world.x_goal[1,:].shape[1]):
+        for i in range(self.world.theta_start.shape[1]):
+            # potential = {
+            #     "theta_goal": self.world.theta_goal[:,j].reshape((2, 1)),
+            #     "shape":"quadratic",
+            #     "repulsive_weight":1/4}
+            grad = lambda theta_eval: self.grad(theta_eval)
+            total = lambda theta_eval: self.eval(theta_eval)
+            
+            plannerParameters['U'] = total
+            plannerParameters['control'] = grad 
+            x_path, u_path = self.run(self.world.theta_start[:,i].reshape((2, 1)), plannerParameters)
+            print(x_path)
+            world.plot()
+            plt.plot(x_path[:,1:5:-1])  
         plt.show()
+        
+
+if __name__=="__main__":
+     planner = pot.Planner()
+     world = pot.SphereWorld()
+     plannerParameters = {"U" : None,
+                          "control": None,
+                          "epsilon": 0.01,
+                          "nb_steps": 1000}
+     potential = {
+    "x_goal": world.x_goal[:,1].reshape((2, 1)),
+    "shape":"quadratic",
+    "repulsive_weight":1/4}
+     # plannerParameters = planner.run_plot()
+     t = TwoLinkPotential(world, potential) 
+     t.run_plot(plannerParameters)
+        
+        

@@ -198,6 +198,8 @@ class Planner:
         u_path = [pot_func(x_path[-1])]
         
         for iter in range(1, nb_steps):
+            if np.isnan(x_path[-1]).any():
+                break
             grad = control(x_path[-1])
             norm_grad = np.linalg.norm(grad)
             if norm_grad < 5e-3:
@@ -234,33 +236,35 @@ class Planner:
                     potential = {
                         "x_goal": world.x_goal[:,j].reshape((2, 1)),
                         "shape":"quadratic",
-                        "repulsive_weight":1}
-                    att = Attractive(potential)
-                    att_eval = lambda x_eval: att.eval(x_eval)
+                        "repulsive_weight":1/4}
+                    # att = Attractive(potential)
+                    # att_eval = lambda x_eval: att.eval(x_eval)
                     tot = Total(world,potential)
                     tot_grad = lambda x_eval: tot.grad(x_eval) 
                     tot_eval = lambda x_eval: tot.eval(x_eval)
-                    clfcbf_grad = lambda x_eval: clfcbf_control(x_eval, world, potential)
+                    # me570_geometry.field_plot_threshold(lambda x_eval: clfcbf_control(x_eval, world.world, potential))
+                    # clfcbf_grad = lambda x_eval: clfcbf_control(x_eval, world, potential)
                     planner_parameters = {
-                    # "U" : tot_eval,
-                    # "control": tot_grad,
-                    "U": att_eval,
-                    "control": clfcbf_grad,
-                    "epsilon": 0.1,
-                    "nb_steps": 40
+                    "U" : tot_eval,
+                    "control": tot_grad,
+                    # "U": att_eval,
+                    # "control": clfcbf_grad,
+                    "epsilon": 0.01,
+                    "nb_steps": 1000
                     }
                     x_path, u_path = self.run(world.x_start[:,i].reshape((2, 1)), planner_parameters)
                     print(x_path)
                     world.plot()
                     plt.plot(x_path[0, :], x_path[1, :])  
                 plt.show()
-                
-                 
             return planner_parameters
 def clfcbf_control(x_eval, world, potential):
     """
     Compute u^* according to      (  eq:clfcbf-qp  ).
     """
+    world = SphereWorld()
+    if np.isnan(x_eval).any():
+        return np.array([[np.NaN],[np.NaN]])
     a_barrier = np.zeros((len(world.world), 2))
     b_barrier= np.zeros((len(world.world), 1))
     attractive = Attractive(potential)
@@ -269,6 +273,8 @@ def clfcbf_control(x_eval, world, potential):
     c_h = potential['repulsive_weight']
     for sphere in world.world:
         h = sphere.distance(x_eval)
+        if h > sphere.distance_influence:
+            continue
         h_grad = sphere.distance_grad(x_eval)
         a_barrier[row,:] = h_grad.T
         b_barrier[row,:] = h
